@@ -1,10 +1,11 @@
 import time
 import numpy as np
-from bisection import bisection
 import flet
 import plotly.express as px
 from flet.plotly_chart import PlotlyChart
 
+def finite_difference(func, x, h=1e-5):
+    return (func(x + h) - func(x - h))/(2*h)
 
 class NewtonRaphsonGUI:
     def __init__(self):
@@ -15,11 +16,6 @@ class NewtonRaphsonGUI:
         self.__page = None
         self.__app_icon = flet.Icon(name=flet.icons.CALCULATE, size=48)
         self.__app_title = flet.Text(value="Newton Raphson Method", style=flet.TextThemeStyle.DISPLAY_SMALL)
-        self.__theme_toggle_button = flet.IconButton(
-            icon=flet.icons.DARK_MODE_OUTLINED,
-            tooltip="Toggle Dark/Light Theme",
-            on_click=self.__toggle_theme
-        )
         self.__function_input = flet.TextField(
             label="f(x)",
             value=self.__function,
@@ -32,12 +28,16 @@ class NewtonRaphsonGUI:
             width=100,
             on_blur=self.__update_starting_value
         )
-        self.__tolerance_input = flet.TextField(
-            label="Tolerance",
-            value=str(self.__tolerance),
-            width=100,
-            on_blur=self.__update_tolerance
-        )
+        self.__tolerance_limits = {"high": 10**-1, "low": 10**-9, "value": 10**-5}
+        self.__tolerance_slider = flet.Slider(min=self.__tolerance_limits["low"],
+                                    max=self.__tolerance_limits["high"],
+                                    value=self.__tolerance_limits["value"],
+                                    divisions=10,
+                                    label="{value} Tolerance",
+                                    on_change=self.__tolerance_change,
+                                    expand=True)
+
+
         self.__calculate_button = flet.IconButton(
             icon=flet.icons.START_OUTLINED,
             tooltip="Calculate",
@@ -48,57 +48,40 @@ class NewtonRaphsonGUI:
         self.__fig = px.line()
         self.__plot = PlotlyChart(self.__fig)
 
+    def __tolerance_change(self, _):
+        self.__tolerance_limits['value'] = int(self.__tolerance_slider.value)
+        self.__page.update()
+
     def __func(self, x):
         return eval(self.__function, {'x': x})
 
-    def __calculate(self, _):
-        self.__root = bisection(self.__func, self.__starting_value, self.__b, self.__tolerance)
-        self.__root_text.value = f"Root: {self.__root:.5f}"
-        d = self.__b - self.__starting_value
-        x_points = np.linspace(self.__starting_value - d, self.__b + d, 100)
-        y_points = self.__func(x_points)
-        self.__fig = px.line(x=x_points, y=y_points)
-        self.__fig.add_scatter(
-            x=[self.__root], y=[self.__func(self.__root)],
-            mode='markers', marker_color='red', marker_size=10, marker_symbol='x',
-            name='root', showlegend=False
-        )
-        self.__plot.figure = self.__fig
-        self.__plot.update()
-        self.__page.update()
-
     def __calculate_animate(self, _):
         self.__calculate_button.icon = flet.icons.PAUSE_OUTLINED
-        d = self.__b - self.__starting_value
-        x_points = np.linspace(self.__starting_value - d, self.__b + d, 100)
+
+        x_points = np.linspace(self.__starting_value-100, self.__starting_value+100, 100)
         y_points = self.__func(x_points)
-        fa = self.__func(self.__starting_value)
-        fb = self.__func(self.__b)
-        m = (self.__starting_value + self.__b) / 2
-        fm = self.__func(m)
         i = 0
-        while abs(fm) > self.__tolerance:
-            self.__root_text.value = f"a: {self.__starting_value:.2f} b: {self.__b:.2f} m: {m:.5f} i: {i}"
+
+        x = self.__starting_value
+        while np.abs(self.__func(x)) > self.__tolerance_limits['value']:
+            x = x - self.__func(x)/finite_difference(self.__func, x)
+
+            self.__root_text.value = f"Current X: {x:.2f} Iteration: {i}"
             self.__fig = px.line(x=x_points, y=y_points)
+            # TODO: Add line to show tangent
             self.__fig.add_scatter(
-                x=[m], y=[self.__func(m)],
+                x=[x], y=[self.__func(x)],
                 mode='markers', marker_color='red', marker_size=10, marker_symbol='x',
                 name='root', showlegend=False
             )
             self.__plot.figure = self.__fig
             self.__plot.update()
             self.__page.update()
-            if np.sign(fa) == np.sign(fm):
-                self.__starting_value = m
-                fa = fm
-            elif np.sign(fb) == np.sign(fm):
-                self.__b = m
-                fb = fm
-            m = (self.__starting_value + self.__b) / 2
-            fm = self.__func(m)
+
             i += 1
             time.sleep(0.5)
-        self.__root = m
+        self.__root = x
+        # TODO: Implement alert box to show root
         self.__calculate_button.icon = flet.icons.REFRESH
         self.__page.update()
 
@@ -111,7 +94,7 @@ class NewtonRaphsonGUI:
         self.__page.update()
 
     def __update_tolerance(self, _):
-        self.__tolerance = float(self.__tolerance_input.value)
+        self.__tolerance = float(self.__tolerance_slider.value)
         self.__page.update()
 
     def __init_window(self):
@@ -148,7 +131,6 @@ class NewtonRaphsonGUI:
                             self.__app_title
                         ]
                     ),
-                    self.__theme_toggle_button
                 ]
             )
         )
@@ -159,7 +141,7 @@ class NewtonRaphsonGUI:
                 controls=[
                     self.__function_input,
                     self.__starting_value_input,
-                    self.__tolerance_input,
+                    self.__tolerance_slider,
                     self.__calculate_button
                 ]
             )
