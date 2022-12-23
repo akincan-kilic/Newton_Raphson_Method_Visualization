@@ -4,8 +4,10 @@ import flet
 import plotly.express as px
 from flet.plotly_chart import PlotlyChart
 
+
 def finite_difference(func, x, h=1e-5):
-    return (func(x + h) - func(x - h))/(2*h)
+    return (func(x + h) - func(x - h)) / (2 * h)
+
 
 class NewtonRaphsonGUI:
     def __init__(self):
@@ -28,15 +30,14 @@ class NewtonRaphsonGUI:
             width=100,
             on_blur=self.__update_starting_value
         )
-        self.__tolerance_limits = {"high": 10**-1, "low": 10**-9, "value": 10**-5}
+        self.__tolerance_limits = {"high": 10 ** -1, "low": 10 ** -9, "value": 10 ** -5}
         self.__tolerance_slider = flet.Slider(min=self.__tolerance_limits["low"],
-                                    max=self.__tolerance_limits["high"],
-                                    value=self.__tolerance_limits["value"],
-                                    divisions=10,
-                                    label="{value} Tolerance",
-                                    on_change=self.__tolerance_change,
-                                    expand=True)
-
+                                              max=self.__tolerance_limits["high"],
+                                              value=self.__tolerance_limits["value"],
+                                              divisions=10,
+                                              label="{value} Tolerance",
+                                              on_change=self.__tolerance_change,
+                                              expand=True)
 
         self.__calculate_button = flet.IconButton(
             icon=flet.icons.START_OUTLINED,
@@ -58,22 +59,43 @@ class NewtonRaphsonGUI:
     def __calculate_animate(self, _):
         self.__calculate_button.icon = flet.icons.PAUSE_OUTLINED
 
-        x_points = np.linspace(self.__starting_value-100, self.__starting_value+100, 100)
+        x_points = np.linspace(self.__starting_value - 100, self.__starting_value + 100, 100)
         y_points = self.__func(x_points)
         i = 0
 
         x = self.__starting_value
         while np.abs(self.__func(x)) > self.__tolerance_limits['value']:
-            x = x - self.__func(x)/finite_difference(self.__func, x)
+            slope = finite_difference(self.__func, x)
+            old_x = x
+            x = x - self.__func(x) / slope
 
             self.__root_text.value = f"Current X: {x:.2f} Iteration: {i}"
             self.__fig = px.line(x=x_points, y=y_points)
             # TODO: Add line to show tangent
+
+            x_line_points = np.linspace(self.__starting_value - 100, self.__starting_value + 100, 100)
+            y_line_points = np.copy(x_line_points)
+
+            for i in range(len(y_line_points)):
+                b = self.__func(old_x) - slope * old_x
+                y_line_points[i] = slope * x_line_points[i] + b
+
+            for i in range(len(y_line_points)):
+                self.__fig.add_scatter(
+                    x=[x_line_points[i]], y=[y_line_points[i]],
+                    mode='markers', marker_color='blue', marker_size=1, marker_symbol='x',
+                    name='31', showlegend=False
+                )
+
+
+
+
             self.__fig.add_scatter(
                 x=[x], y=[self.__func(x)],
                 mode='markers', marker_color='red', marker_size=10, marker_symbol='x',
                 name='root', showlegend=False
             )
+
             self.__plot.figure = self.__fig
             self.__plot.update()
             self.__page.update()
