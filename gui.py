@@ -12,12 +12,14 @@ def finite_difference(func, x, h=1e-5):
 class NewtonRaphsonGUI:
     def __init__(self):
         self.__starting_value = 0
-        self.__tolerance = 1e-5
+        self.__x_limits = None
         self.__root = 0
-        self.__function = 'x**2 - 2'
+        # self.__function = '-2 * x**5 + 3 * x**3 -0.3 * x**2 + 1'
+        self.__function = 'sin(x)'
         self.__page = None
         self.__app_icon = flet.Icon(name=flet.icons.CALCULATE, size=48)
-        self.__app_title = flet.Text(value="Newton Raphson Method", style=flet.TextThemeStyle.DISPLAY_SMALL)
+        self.__app_title = flet.Text(
+            value="Newton Raphson Method", style=flet.TextThemeStyle.DISPLAY_SMALL)
         self.__function_input = flet.TextField(
             label="f(x)",
             value=self.__function,
@@ -45,65 +47,74 @@ class NewtonRaphsonGUI:
             icon_size=48,
             on_click=self.__calculate_animate
         )
-        self.__root_text = flet.Text(value="", style=flet.TextThemeStyle.DISPLAY_SMALL)
+        self.__root_text = flet.Text(
+            value="", style=flet.TextThemeStyle.DISPLAY_SMALL)
         self.__fig = px.line()
         self.__plot = PlotlyChart(self.__fig)
+
+    def __calculate_xlims(self, x0):
+        x0 = np.abs(x0 + 30)
+        self.__x_limits = {'min': int(-2 * x0), 'max': int(2 * x0), 'amount': int(100 * x0)}
 
     def __tolerance_change(self, _):
         self.__tolerance_limits['value'] = int(self.__tolerance_slider.value)
         self.__page.update()
 
-    def __func(self, x):
-        return eval(self.__function, {'x': x})
+    def __func(self, x: int):
+        return eval(self.__function, {'x': x, 'sin': np.sin, 'cos': np.cos, 'tan': np.tan, 'log': np.log, 'ln': np.log, 'e': np.e, 'pi': np.pi})
 
     def __calculate_animate(self, _):
         self.__calculate_button.icon = flet.icons.PAUSE_OUTLINED
-
-        x_points = np.linspace(self.__starting_value - 100, self.__starting_value + 100, 100)
+        x_points = np.linspace(self.__x_limits['min'], self.__x_limits['max'], self.__x_limits['amount'])
         y_points = self.__func(x_points)
         i = 0
+        x_intercept = self.__starting_value
+        while np.abs(self.__func(x_intercept)) > self.__tolerance_limits['value']:
+            slope = finite_difference(self.__func, x_intercept)
+            x_old = x_intercept
+            x_intercept = x_intercept - self.__func(x_intercept) / slope
 
-        x = self.__starting_value
-        while np.abs(self.__func(x)) > self.__tolerance_limits['value']:
-            slope = finite_difference(self.__func, x)
-            old_x = x
-            x = x - self.__func(x) / slope
-
-            self.__root_text.value = f"Current X: {x:.2f} Iteration: {i}"
+            self.__root_text.value = f"Current X: {x_intercept:.2f} Iteration: {i}"
             self.__fig = px.line(x=x_points, y=y_points)
-            # TODO: Add line to show tangent
 
-            x_line_points = np.linspace(self.__starting_value - 100, self.__starting_value + 100, 100)
-            y_line_points = np.copy(x_line_points)
+            x_line_points = np.linspace(self.__x_limits['min'], self.__x_limits['max'], self.__x_limits['amount'])
+            y_line_points = slope * (x_line_points - x_old) + self.__func(x_old)
 
-            for i in range(len(y_line_points)):
-                b = self.__func(old_x) - slope * old_x
-                y_line_points[i] = slope * x_line_points[i] + b
-
-            for i in range(len(y_line_points)):
-                self.__fig.add_scatter(
-                    x=[x_line_points[i]], y=[y_line_points[i]],
-                    mode='markers', marker_color='blue', marker_size=1, marker_symbol='x',
-                    name='31', showlegend=False
-                )
-
-
-
+            self.__fig.add_scatter(x=x_line_points, y=y_line_points, name='line', showlegend=False, line_color='red', line_width=1)
+            self.__fig.add_vline(x_old, line_color='blue', line_width=1)
 
             self.__fig.add_scatter(
-                x=[x], y=[self.__func(x)],
-                mode='markers', marker_color='red', marker_size=10, marker_symbol='x',
+                x=[x_intercept], y=[self.__func(x_intercept)],
+                mode='markers', marker_color='red', marker_size=10, marker_symbol='circle',
                 name='root', showlegend=False
             )
 
+            self.__fig.add_scatter(
+                x=[x_intercept], y=[0],
+                mode='markers', marker_color='red', marker_size=10, marker_symbol='circle',
+                name='root', showlegend=False
+            )
+
+            self.__fig.add_vline(0, line_color='green', line_width=1)
+            self.__fig.add_hline(0, line_color='green', line_width=1)
+
+            min_x = min(x_old, x_intercept)
+            max_x = max(x_old, x_intercept)
+            self.__fig.update_layout(
+                xaxis_range=[min_x - 1, max_x + 1],
+                yaxis_range=[-2, 2]
+            )
             self.__plot.figure = self.__fig
             self.__plot.update()
             self.__page.update()
-
             i += 1
-            time.sleep(0.5)
-        self.__root = x
-        # TODO: Implement alert box to show root
+            time.sleep(0.7)
+
+
+        # TODO: Implement alert box to show root after calculation.
+        # https://flet.dev/docs/controls/alertdialog
+        # https://flet.dev/docs/controls/snackbar
+        # Found root, it is x
         self.__calculate_button.icon = flet.icons.REFRESH
         self.__page.update()
 
@@ -113,6 +124,7 @@ class NewtonRaphsonGUI:
 
     def __update_starting_value(self, _):
         self.__starting_value = float(self.__starting_value_input.value)
+        self.__calculate_xlims(self.__starting_value)
         self.__page.update()
 
     def __update_tolerance(self, _):
@@ -131,16 +143,7 @@ class NewtonRaphsonGUI:
         self.__page.window_center()
         self.__page.theme_mode = flet.ThemeMode.LIGHT
 
-    def __toggle_theme(self, _):
-        if self.__page.theme_mode == flet.ThemeMode.LIGHT:
-            self.__page.theme_mode = flet.ThemeMode.DARK
-        else:
-            self.__page.theme_mode = flet.ThemeMode.LIGHT
-        self.__page.update()
-
-    def __call__(self, flet_page: flet.Page):
-        self.__page = flet_page
-        self.__init_window()
+    def __add_apptitle(self):
         self.__page.add(
             flet.Row(
                 wrap=False,
@@ -156,6 +159,8 @@ class NewtonRaphsonGUI:
                 ]
             )
         )
+
+    def __add_controls(self):
         self.__page.add(
             flet.Row(
                 wrap=False,
@@ -168,6 +173,8 @@ class NewtonRaphsonGUI:
                 ]
             )
         )
+
+    def __add_root_text(self):
         self.__page.add(
             flet.Row(
                 wrap=False,
@@ -177,6 +184,13 @@ class NewtonRaphsonGUI:
                 ]
             )
         )
+
+    def __call__(self, flet_page: flet.Page):
+        self.__page = flet_page
+        self.__init_window()
+        self.__add_apptitle()
+        self.__add_controls()
+        self.__add_root_text()
         self.__page.add(self.__plot)
         self.__page.update()
 
