@@ -47,8 +47,11 @@ class NewtonRaphson(FuncAnimation):
         return self.x - self.f(self.x)/self.diff()
 
 
+# def f1(x):
+#     return x**2 - 4*x - 7
+
 def f1(x):
-    return x**2 - 4*x - 7
+    return np.sin(x)
 
 
 def f2(x):
@@ -66,18 +69,18 @@ def main():
     iteration_limit = 10
     x_limits = [2, 8, 100]
     NewtonRaphson(f1, x, h, tolerance, iteration_limit, x_limits, True)
-    x = 5
-    h = 1e-6
-    tolerance = 1e-6
-    iteration_limit = 30
-    x_limits = [-1, 1, 100]
-    NewtonRaphson(f2, x, h, tolerance, iteration_limit, x_limits, True)
-    x = 1
-    h = 1e-6
-    tolerance = 1e-3
-    iteration_limit = 10
-    x_limits = [-0.5, 3, 100]
-    NewtonRaphson(f3, x, h, tolerance, iteration_limit, x_limits, True)
+    # x = 5
+    # h = 1e-6
+    # tolerance = 1e-6
+    # iteration_limit = 30
+    # x_limits = [-1, 1, 100]
+    # NewtonRaphson(f1, x, h, tolerance, iteration_limit, x_limits, True)
+    # x = 1
+    # h = 1e-6
+    # tolerance = 1e-3
+    # iteration_limit = 10
+    # x_limits = [-0.5, 3, 100]
+    # NewtonRaphson(f3, x, h, tolerance, iteration_limit, x_limits, True)
 
 
 if __name__ == "__main__":
