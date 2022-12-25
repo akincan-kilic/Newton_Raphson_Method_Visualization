@@ -52,6 +52,7 @@ class NewtonRaphsonGUI:
         self.__tolerance = 1e-6
         self.__starting_value = 10
         self.__function_string_value = "3 * x ** 2"
+        self.__x_limits = {'min': -0.01, 'max': 0.01, 'amount': 1000}
         self.__running = False
         # ----------------------------------------------------
         self.__page = flet_page
@@ -79,10 +80,24 @@ class NewtonRaphsonGUI:
                 return current_x_value
 
     def __calculate_interval(self, current_x, previous_x):
-        min_x = self.__known_root + 100
-        max_x = self.__known_root - 100
 
-        self.__x_limits = {'min': min_x, 'max': max_x, 'amount': 1000}
+        min_new = -0.01
+        max_new = 0.01
+        scale_factor = 2
+
+        while not (min_new < min(current_x, previous_x) and max(current_x, previous_x) < max_new):
+            min_new *= scale_factor
+            max_new *= scale_factor
+
+        min_old = self.__x_limits['min']
+
+        if not (5 < abs(min_new / min_old) < 10):
+            self.__x_limits['min'] = min_new
+
+        max_old = self.__x_limits['max']
+
+        if not (5 < abs(max_new / max_old) < 10):
+            self.__x_limits['max'] = max_new
 
     def __function(self, x):
         return eval(self.__function_string_value,
@@ -116,11 +131,13 @@ class NewtonRaphsonGUI:
         x_points = np.linspace(self.__x_limits['min'], self.__x_limits['max'], self.__x_limits['amount'])
         y_points = self.__function(x_points)
         fig = px.line(x=x_points, y=y_points)
-        x_line_points = np.linspace(self.__x_limits['min'], self.__x_limits['max'], self.__x_limits['amount'])
+
+        x_line_points = np.linspace(self.__x_limits['min'], self.__x_limits['max'], 2)
         y_line_points = slope * (x_line_points - previous_x_value) + self.__function(previous_x_value)
 
         fig.add_scatter(x=x_line_points, y=y_line_points, name='line', showlegend=False, line_color='red',
                         line_width=1)
+
         fig.add_vline(previous_x_value, line_color='blue', line_width=1)
 
         fig.add_scatter(
