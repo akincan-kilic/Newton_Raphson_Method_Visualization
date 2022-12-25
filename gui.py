@@ -5,8 +5,9 @@ import plotly.express as px
 import plotly.graph_objects
 from threading import Thread
 from flet.plotly_chart import PlotlyChart
+import random
 
-ITERATION_SPEEDS = {'Turtle': 1, 'Slow': 0.5, 'Medium': 0.25, 'Fast': 0.1, 'Sonic!': 0.01}
+ITERATION_SPEEDS = {'Turtle': 5, 'Slow': 2, 'Medium': 1, 'Fast': 0.5, 'Sonic!': 0.01}
 
 
 def finite_difference(func, x, h=1e-5):
@@ -22,7 +23,7 @@ class NewtonRaphsonGUI:
     # Dynamic content
     __calculate_button: flet.IconButton
     __root_text: flet.Text
-    fig: plotly.graph_objects.Figure
+    __fig: plotly.graph_objects.Figure
     __plot: PlotlyChart
 
     # Dynamic, input related
@@ -52,7 +53,8 @@ class NewtonRaphsonGUI:
         self.__tolerance = 1e-6
         self.__starting_value = 10
         self.__function_string_value = "3 * x ** 2"
-        self.__x_limits = {'min': -0.01, 'max': 0.01, 'amount': 1000}
+        self.__x_limits = {'min': -2, 'max': 2, 'amount': 1000}
+        self.__zoom_limits = {'x_min': -1, 'x_max': 1, 'y_min': -1, 'y_max': 1}
         self.__running = False
         # ----------------------------------------------------
         self.__page = flet_page
@@ -80,24 +82,8 @@ class NewtonRaphsonGUI:
                 return current_x_value
 
     def __calculate_interval(self, current_x, previous_x):
-
-        min_new = -0.01
-        max_new = 0.01
-        scale_factor = 2
-
-        while not (min_new < min(current_x, previous_x) and max(current_x, previous_x) < max_new):
-            min_new *= scale_factor
-            max_new *= scale_factor
-
-        min_old = self.__x_limits['min']
-
-        if not (5 < abs(min_new / min_old) < 10):
-            self.__x_limits['min'] = min_new
-
-        max_old = self.__x_limits['max']
-
-        if not (5 < abs(max_new / max_old) < 10):
-            self.__x_limits['max'] = max_new
+        self.__x_limits['min'] = -2 * current_x
+        self.__x_limits['max'] = 2 * current_x
 
     def __function(self, x):
         return eval(self.__function_string_value,
@@ -105,20 +91,16 @@ class NewtonRaphsonGUI:
                      'pi': np.pi})
 
     def __on_calculate_button_clicked(self, _):
-
         if not self.__running:
             self.__known_root = self.__brute_calculate()
             self.__set_state_to_running()
-            self.__thread = NewtonRaphsonThread(self, self.__iteration_speed, self.__starting_value, self.__function,
-                                                self.__tolerance)
+            self.__thread = NewtonRaphsonThread(self, self.__iteration_speed, self.__starting_value, self.__function, self.__tolerance)
             self.__thread.start()
         else:
             self.__thread.kill()
             self.__set_state_to_ready()
 
-    def on_notify(self, slope, previous_x_value, current_x_value, current_function_value, iteration_counter,
-                  root_found):
-
+    def on_notify(self, slope, previous_x_value, current_x_value, current_function_value, iteration_counter, root_found):
         self.__on_figure_changed(slope, previous_x_value, current_x_value, current_function_value)
         self.__on_root_text_value_changed(current_x_value, iteration_counter)
         self.__page.update()
@@ -126,18 +108,25 @@ class NewtonRaphsonGUI:
         if root_found:
             self.__on_root_found(current_x_value)
 
+    def __calculate_zoom_limits(self, current_x_value, previous_x_value):
+        middle_x = (current_x_value + previous_x_value) / 2
+        middle_y = self.__function(middle_x)
+
+        self.__zoom_limits['x_min'] = current_x_value * -1.10
+        self.__zoom_limits['x_max'] = previous_x_value * 1.10
+        self.__zoom_limits['y_min'] = -1 * middle_y
+        self.__zoom_limits['y_max'] = 3 * middle_y
+
     def __on_figure_changed(self, slope, previous_x_value, current_x_value, current_function_value):
-        self.__calculate_interval(current_x_value, previous_x_value)
+        # self.__calculate_interval(current_x_value, previous_x_value)
         x_points = np.linspace(self.__x_limits['min'], self.__x_limits['max'], self.__x_limits['amount'])
         y_points = self.__function(x_points)
         fig = px.line(x=x_points, y=y_points)
 
-        x_line_points = np.linspace(self.__x_limits['min'], self.__x_limits['max'], 2)
-        y_line_points = slope * (x_line_points - previous_x_value) + self.__function(previous_x_value)
+        x_line_points = np.array([current_x_value, previous_x_value])
+        y_line_points = slope * (x_line_points - previous_x_value) + self.__function(previous_x_value) # y = mx + b
 
-        fig.add_scatter(x=x_line_points, y=y_line_points, name='line', showlegend=False, line_color='red',
-                        line_width=1)
-
+        fig.add_scatter(x=x_line_points, y=y_line_points, name='line', showlegend=False, line_color='red', line_width=1)
         fig.add_vline(previous_x_value, line_color='blue', line_width=1)
 
         fig.add_scatter(
@@ -149,12 +138,17 @@ class NewtonRaphsonGUI:
         fig.add_vline(0, line_color='black', line_width=1)
         fig.add_hline(0, line_color='black', line_width=1)
 
+        # fig.update_xaxes(range=[self.__x_limits['min'], self.__x_limits['max']], constrain='domain')
+        # fig.update_yaxes(range=[self.__function(self.__x_limits['min']), self.__function(self.__x_limits['max'])], constrain='domain')
+        self.__calculate_zoom_limits(current_x_value, previous_x_value)
+        fig.update_xaxes(range=[self.__zoom_limits['x_min'], self.__zoom_limits['x_max']], constrain='domain')
+        fig.update_yaxes(range=[self.__zoom_limits['y_min'], self.__zoom_limits['y_max']], constrain='domain')
+
         self.__plot.figure = fig
         self.__plot.update()
         self.__page.update()
 
     def __on_root_found(self, root):
-
         self.__page.dialog.content = flet.Text(
             value=f"Found root at x={root:.2f}\nDo you want to enter another value to find another root?",
             style=flet.TextThemeStyle.BODY_LARGE)
@@ -317,8 +311,8 @@ class NewtonRaphsonGUI:
                                                   on_click=self.__on_calculate_button_clicked)
         self.__root_text = flet.Text(value="", style=flet.TextThemeStyle.BODY_LARGE, selectable=False, size=20,
                                      text_align=flet.TextAlign.CENTER, weight=flet.FontWeight.BOLD)
-        self.fig = px.line()
-        self.__plot = PlotlyChart(self.fig)
+        self.__fig = px.line()
+        self.__plot = PlotlyChart(self.__fig)
 
 
 class NewtonRaphsonThread(Thread):
@@ -366,7 +360,6 @@ class NewtonRaphsonThread(Thread):
 
             if root_found or self.__cancellation_token:
                 break
-
             time.sleep(self.__iteration_speed)
 
 
