@@ -54,7 +54,7 @@ class NewtonRaphsonGUI:
         self.__starting_value = -2
         self.__function_string_value = "x**3 + 2 * x**2 - 0.671"
         self.__x_limits = {'min': -2, 'max': 2, 'amount': 1000}
-        self.__zoom_limits = {'x_min': -1, 'x_max': 1, 'y_min': -1, 'y_max': 1}
+        self.__zoom_limits = {'x_min': -1.0, 'x_max': 1.0, 'y_min': -1.0, 'y_max': 1.0}
         self.__running = False
         # ----------------------------------------------------
         self.__page = flet_page
@@ -82,9 +82,6 @@ class NewtonRaphsonGUI:
                 return current_x_value
         return None
 
-    def __calculate_interval(self, current_x, previous_x):
-        self.__x_limits['min'] = -2 * current_x
-        self.__x_limits['max'] = 2 * current_x
 
     def __function(self, x):
         try:
@@ -108,20 +105,20 @@ class NewtonRaphsonGUI:
                 return None
             self.__known_root = self.__brute_calculate()
             if self.__known_root > 1:
-                self.__zoom_limits['x_min'] = -2 * self.__known_root
-                self.__zoom_limits['x_max'] = 2 * self.__known_root
-                self.__x_limits['min'] = -2 * self.__known_root
-                self.__x_limits['max'] = 2 * self.__known_root
+                self.__zoom_limits['x_min'] = self.__known_root - 3
+                self.__zoom_limits['x_max'] = self.__known_root + 3
+                self.__x_limits['min'] = self.__known_root - 3
+                self.__x_limits['max'] = self.__known_root + 3
             elif self.__known_root < -1:
-                self.__zoom_limits['x_min'] = 2 * self.__known_root
-                self.__zoom_limits['x_max'] = -2 * self.__known_root
-                self.__x_limits['min'] = 2 * self.__known_root
-                self.__x_limits['max'] = -2 * self.__known_root
+                self.__zoom_limits['x_min'] = self.__known_root - 3
+                self.__zoom_limits['x_max'] = self.__known_root + 3
+                self.__x_limits['min'] = self.__known_root - 3
+                self.__x_limits['max'] = self.__known_root + 3
             else:
-                self.__zoom_limits['x_min'] = -1
-                self.__zoom_limits['x_max'] = 1
-                self.__x_limits['min'] = -1
-                self.__x_limits['max'] = 1
+                self.__zoom_limits['x_min'] = -3
+                self.__zoom_limits['x_max'] = 3
+                self.__x_limits['min'] = -3
+                self.__x_limits['max'] = 3
             if self.__known_root is None:
                 self.create_snackbar('No root exits for this function!')
                 return None
