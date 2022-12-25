@@ -7,7 +7,7 @@ from threading import Thread
 from flet.plotly_chart import PlotlyChart
 import random
 
-ITERATION_SPEEDS = {'Turtle': 5, 'Slow': 2, 'Medium': 1, 'Fast': 0.5, 'Sonic!': 0.01}
+ITERATION_SPEEDS = {'Turtle': 2, 'Slow': 1, 'Medium': 0.5, 'Fast': 0.2, 'Sonic!': 0.01}
 
 
 def finite_difference(func, x, h=1e-5):
@@ -51,8 +51,8 @@ class NewtonRaphsonGUI:
     def __init__(self, flet_page: flet.Page):
         # Logic Related
         self.__tolerance = 1e-6
-        self.__starting_value = 10
-        self.__function_string_value = "3 * x ** 2"
+        self.__starting_value = -2
+        self.__function_string_value = "x**3 + 2 * x**2 - 0.671"
         self.__x_limits = {'min': -2, 'max': 2, 'amount': 1000}
         self.__zoom_limits = {'x_min': -1, 'x_max': 1, 'y_min': -1, 'y_max': 1}
         self.__running = False
@@ -65,7 +65,7 @@ class NewtonRaphsonGUI:
 
     def __brute_calculate(self):
         current_x_value = self.__starting_value
-        while True:
+        for _ in range(1000):
             # Calculate derivative at current value of x and interpret as slope.
             slope = finite_difference(self.__function, current_x_value)
 
@@ -76,23 +76,56 @@ class NewtonRaphsonGUI:
             # Recalculate function value for updated x value.
             current_function_value = self.__function(current_x_value)
 
-            root_found = abs(current_function_value) < 0.01
+            root_found = abs(current_function_value) < 0.001
 
             if root_found:
                 return current_x_value
+        return None
 
     def __calculate_interval(self, current_x, previous_x):
         self.__x_limits['min'] = -2 * current_x
         self.__x_limits['max'] = 2 * current_x
 
     def __function(self, x):
-        return eval(self.__function_string_value,
+        try:
+            evaluated = eval(self.__function_string_value,
                     {'x': x, 'sin': np.sin, 'cos': np.cos, 'tan': np.tan, 'log': np.log, 'ln': np.log, 'e': np.e,
                      'pi': np.pi})
+            return evaluated
+        except SyntaxError:
+            self.create_snackbar('Invalid function!')
+            return None
+
+    def create_snackbar(self, message: str):
+        sb = flet.SnackBar(content=flet.Text(message), action='OK')
+        sb.open = True
+        self.__page.add(sb)
+        self.__page.update()
 
     def __on_calculate_button_clicked(self, _):
         if not self.__running:
+            if self.__function(0) is None:
+                return None
             self.__known_root = self.__brute_calculate()
+            if self.__known_root > 1:
+                self.__zoom_limits['x_min'] = -2 * self.__known_root
+                self.__zoom_limits['x_max'] = 2 * self.__known_root
+                self.__x_limits['min'] = -2 * self.__known_root
+                self.__x_limits['max'] = 2 * self.__known_root
+            elif self.__known_root < -1:
+                self.__zoom_limits['x_min'] = 2 * self.__known_root
+                self.__zoom_limits['x_max'] = -2 * self.__known_root
+                self.__x_limits['min'] = 2 * self.__known_root
+                self.__x_limits['max'] = -2 * self.__known_root
+            else:
+                self.__zoom_limits['x_min'] = -1
+                self.__zoom_limits['x_max'] = 1
+                self.__x_limits['min'] = -1
+                self.__x_limits['max'] = 1
+            if self.__known_root is None:
+                self.create_snackbar('No root exits for this function!')
+                return None
+
             self.__set_state_to_running()
             self.__thread = NewtonRaphsonThread(self, self.__iteration_speed, self.__starting_value, self.__function, self.__tolerance)
             self.__thread.start()
@@ -108,39 +141,22 @@ class NewtonRaphsonGUI:
         if root_found:
             self.__on_root_found(current_x_value)
 
-    def __calculate_zoom_limits(self, current_x_value, previous_x_value):
-        middle_x = (current_x_value + previous_x_value) / 2
-        middle_y = self.__function(middle_x)
 
-        self.__zoom_limits['x_min'] = current_x_value * -1.10
-        self.__zoom_limits['x_max'] = previous_x_value * 1.10
-        self.__zoom_limits['y_min'] = -1 * middle_y
-        self.__zoom_limits['y_max'] = 3 * middle_y
+    def draw_line_to_figure(self, p1:tuple, p2:tuple, fig, color:str, width:int):
+        fig.add_scatter(x=[p1[0], p2[0]], y=[p1[1], p2[1]], name='line', showlegend=False, line_color=color, line_width=width)
 
     def __on_figure_changed(self, slope, previous_x_value, current_x_value, current_function_value):
-        # self.__calculate_interval(current_x_value, previous_x_value)
         x_points = np.linspace(self.__x_limits['min'], self.__x_limits['max'], self.__x_limits['amount'])
         y_points = self.__function(x_points)
         fig = px.line(x=x_points, y=y_points)
-
-        x_line_points = np.array([current_x_value, previous_x_value])
-        y_line_points = slope * (x_line_points - previous_x_value) + self.__function(previous_x_value) # y = mx + b
-
-        fig.add_scatter(x=x_line_points, y=y_line_points, name='line', showlegend=False, line_color='red', line_width=1)
-        fig.add_vline(previous_x_value, line_color='blue', line_width=1)
-
-        fig.add_scatter(
-            x=[current_x_value], y=[0],
-            mode='markers', marker_color='red', marker_size=10, marker_symbol='circle',
-            name='root', showlegend=False
-        )
+        self.draw_line_to_figure((previous_x_value, self.__function(previous_x_value)), (current_x_value, 0), fig, 'orange', 2)
+        self.draw_line_to_figure((previous_x_value, self.__function(previous_x_value)), (previous_x_value, 0), fig, 'green', 2)
+        fig.add_scatter(x=[previous_x_value], y=[self.__function(previous_x_value)], mode='markers', marker_color='red', marker_size=10, marker_symbol='x', name='root', showlegend=False)
 
         fig.add_vline(0, line_color='black', line_width=1)
         fig.add_hline(0, line_color='black', line_width=1)
 
-        # fig.update_xaxes(range=[self.__x_limits['min'], self.__x_limits['max']], constrain='domain')
-        # fig.update_yaxes(range=[self.__function(self.__x_limits['min']), self.__function(self.__x_limits['max'])], constrain='domain')
-        self.__calculate_zoom_limits(current_x_value, previous_x_value)
+        # self.__calculate_zoom_limits(current_x_value, previous_x_value)
         fig.update_xaxes(range=[self.__zoom_limits['x_min'], self.__zoom_limits['x_max']], constrain='domain')
         fig.update_yaxes(range=[self.__zoom_limits['y_min'], self.__zoom_limits['y_max']], constrain='domain')
 
@@ -192,8 +208,11 @@ class NewtonRaphsonGUI:
         self.__page.update()
 
     def __on_starting_value_changed(self, _):
-        self.__starting_value = float(self.__starting_value_input.value)
-        self.__page.update()
+        try:
+            self.__starting_value = float(self.__starting_value_input.value)
+            self.__page.update()
+        except ValueError:
+            pass
 
     def __on_tolerance_slider_change(self, _):
         self.__tolerance = 10 ** -self.__tolerance_slider.value
